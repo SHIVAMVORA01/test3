@@ -30,13 +30,13 @@ def send_to_targetprocess(data_payload):
     return response
 
 # Load and display data
-df = load_data()
+original_df = load_data()
 
 # Ensure 'Portfolio Epic' is the first column
-columns = list(df.columns)
+columns = list(original_df.columns)
 if 'Portfolio Epic' in columns:
     columns.insert(0, columns.pop(columns.index('Portfolio Epic')))
-    df = df[columns]
+    original_df = original_df[columns]
 
 # Create a container for the buttons
 button_container = st.container()
@@ -50,7 +50,7 @@ with button_container:
         send_button = st.button("Send to Targetprocess")
 
 # Display the editable DataFrame
-edited_df = st.data_editor(df, num_rows="dynamic", use_container_width=True)
+edited_df = st.data_editor(original_df, num_rows="dynamic", use_container_width=True)
 
 # Handle button clicks
 if save_button:
@@ -58,13 +58,17 @@ if save_button:
     st.success("Changes saved successfully!")
 
 if send_button:
-    save_data(edited_df)  
-    data_payload = edited_df.to_dict(orient='records')
-    with st.expander("View Data Sent"):
-        st.info(data_payload)  
-    response = send_to_targetprocess(data_payload)
-    
-    if response.status_code == 200:
-        st.success("Successfully sent data to Targetprocess.")
+    # Identify the edited rows
+    edited_rows = original_df.compare(edited_df)
+    if not edited_rows.empty:
+        edited_indices = edited_rows.index.unique()
+        data_payload = edited_df.loc[edited_indices].to_dict(orient='records')
+        with st.expander("View Data Sent"):
+            st.info(data_payload)
+        response = send_to_targetprocess(data_payload)
+        if response.status_code == 200:
+            st.success("Successfully sent data to Targetprocess.")
+        else:
+            st.error(f"Failed to send data to Targetprocess. Status code: {response.status_code}, Response: {response.text}")
     else:
-        st.error(f"Failed to send data to Targetprocess. Status code: {response.status_code}, Response: {response.text}")
+        st.info("No changes detected to send.")
