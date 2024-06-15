@@ -32,6 +32,12 @@ def send_to_targetprocess(data_payload):
 # Load and display data
 df = load_data()
 
+# Ensure 'Portfolio Epic' is the first column
+columns = list(df.columns)
+if 'Portfolio Epic' in columns:
+    columns.insert(0, columns.pop(columns.index('Portfolio Epic')))
+    df = df[columns]
+
 # Create a container for the buttons
 button_container = st.container()
 
@@ -61,4 +67,3 @@ if send_button:
         st.success("Successfully sent data to Targetprocess.")
     else:
         st.error(f"Failed to send data to Targetprocess. Status code: {response.status_code}, Response: {response.text}")
-
