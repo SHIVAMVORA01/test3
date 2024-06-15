@@ -60,7 +60,8 @@ if save_button:
 if send_button:
     save_data(edited_df)  
     data_payload = edited_df.to_dict(orient='records')
-    st.info(data_payload)  
+    with st.expander("View Data Sent"):
+        st.info(data_payload)  
     response = send_to_targetprocess(data_payload)
     
     if response.status_code == 200:
