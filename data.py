@@ -43,7 +43,7 @@ button_container = st.container()
 
 # Place buttons in a row at the top-right corner
 with button_container:
-    col1, col2, col3 = st.columns([4, 1, 1])
+    col1, col2, col3, col4 = st.columns([4, 1, 1, 1])
     with col2:
         save_button = st.button("Save Changes")
     with col3:
@@ -57,14 +57,35 @@ if save_button:
     save_data(edited_df)
     st.success("Changes saved successfully!")
 
+change_messages = []
+data_payload = []
+
 if send_button:
     # Identify the edited rows
-    edited_rows = original_df.compare(edited_df)
-    if not edited_rows.empty:
-        edited_indices = edited_rows.index.unique()
-        data_payload = edited_df.loc[edited_indices].to_dict(orient='records')
-        with st.expander("View Data Sent"):
-            st.info(data_payload)
+    changes = original_df.compare(edited_df)
+    if not changes.empty:
+        edited_indices = changes.index.unique()
+        for idx in edited_indices:
+            original_row = original_df.loc[idx]
+            edited_row = edited_df.loc[idx]
+            for column in original_df.columns:
+                if original_row[column] != edited_row[column]:
+                    change_message = f"The value of {column} in Portfolio Epic ID {original_row['Portfolio Epic ID']} was changed from {original_row[column]} to {edited_row[column]}."
+                    change_messages.append(change_message)
+                    data_payload.append({
+                        "Index": idx,
+                        "Field": column,
+                        "Original Value": original_row[column],
+                        "New Value": edited_row[column]
+                    })
+
+        # Display changes in a popover
+        with col4:
+            with st.popover("View Sent Changes"):
+                st.write("Changes Detected:")
+                for msg in change_messages:
+                    st.info(msg)
+
         response = send_to_targetprocess(data_payload)
         if response.status_code == 200:
             st.success("Successfully sent data to Targetprocess.")
@@ -72,3 +93,4 @@ if send_button:
             st.error(f"Failed to send data to Targetprocess. Status code: {response.status_code}, Response: {response.text}")
     else:
         st.info("No changes detected to send.")
+
