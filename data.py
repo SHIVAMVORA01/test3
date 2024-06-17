@@ -28,7 +28,7 @@ def send_to_targetprocess(data_payload):
     headers = {
         "Content-Type": "application/json"
     }
-    response = requests.post(webhook_url, json=data_payload, verify='./Belden-Global-Root-CA.crt', headers=headers)
+    response = requests.post(webhook_url, json=data_payload, verify='Belden-Global-Root-CA.crt', headers=headers)
     return response
 
 # Load initial data
