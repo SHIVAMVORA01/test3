@@ -1,24 +1,26 @@
 import streamlit as st
 import pandas as pd
+import sqlite3
 import requests
+from datetime import datetime
 
 st.set_page_config(
     page_title="PMO",
     layout="wide",
 )
 
-# Function to load the data
+# Function to load data from SQLite
 def load_data():
-    excel_file_path = 'PBC_Test Project1.xlsm'  
-    sheet_name = 'TP Import'
-    df = pd.read_excel(excel_file_path, sheet_name=sheet_name)
+    conn = sqlite3.connect('pmo_data.db')
+    df = pd.read_sql_query("SELECT * FROM tp_import", conn)
+    conn.close()
     return df
 
-# Function to save the data
+# Function to save data to SQLite
 def save_data(df):
-    excel_file_path = 'PBC_Test Project1.xlsm'  
-    with pd.ExcelWriter(excel_file_path, engine='openpyxl') as writer:
-        df.to_excel(writer, index=False, sheet_name='TP Import')
+    conn = sqlite3.connect('pmo_data.db')
+    df.to_sql('tp_import', conn, if_exists='replace', index=False)
+    conn.close()
 
 # Function to send data to Targetprocess
 def send_to_targetprocess(data_payload):
@@ -29,68 +31,62 @@ def send_to_targetprocess(data_payload):
     response = requests.post(webhook_url, json=data_payload, verify='./Belden-Global-Root-CA.crt', headers=headers)
     return response
 
-# Load and display data
+# Load initial data
 original_df = load_data()
 
 # Ensure 'Portfolio Epic' is the first column
 columns = list(original_df.columns)
-if 'Portfolio Epic' in columns:
-    columns.insert(0, columns.pop(columns.index('Portfolio Epic')))
+if 'Portfolio Epic ID' in columns:
+    columns.insert(0, columns.pop(columns.index('Portfolio Epic ID')))
     original_df = original_df[columns]
+
+# Display the last refresh time
+if 'last_refresh_time' not in st.session_state:
+    st.session_state.last_refresh_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
 # Create a container for the buttons
 button_container = st.container()
 
 # Place buttons in a row at the top-right corner
 with button_container:
-    col1, col2, col3, col4 = st.columns([4, 1, 1, 1])
+    col1, col2, col3 = st.columns([4, 1, 2])
     with col2:
-        save_button = st.button("Save Changes")
+        refresh_button = st.button("Refresh Data")
     with col3:
-        send_button = st.button("Send to Targetprocess")
+        st.write(f"Last refreshed: {st.session_state.last_refresh_time}")
 
 # Display the editable DataFrame
 edited_df = st.data_editor(original_df, num_rows="dynamic", use_container_width=True)
 
-# Handle button clicks
-if save_button:
-    save_data(edited_df)
-    st.success("Changes saved successfully!")
+# Handle refresh button click
+if refresh_button:
+    original_df = load_data()
+    st.session_state.last_refresh_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-change_messages = []
-data_payload = []
-
-if send_button:
-    # Identify the edited rows
-    changes = original_df.compare(edited_df)
-    if not changes.empty:
-        edited_indices = changes.index.unique()
-        for idx in edited_indices:
-            original_row = original_df.loc[idx]
-            edited_row = edited_df.loc[idx]
-            for column in original_df.columns:
-                if original_row[column] != edited_row[column]:
-                    change_message = f"The value of {column} in Portfolio Epic ID {original_row['Portfolio Epic ID']} was changed from {original_row[column]} to {edited_row[column]}."
-                    change_messages.append(change_message)
-                    data_payload.append({
-                        "Index": idx,
-                        "Field": column,
-                        "Original Value": original_row[column],
-                        "New Value": edited_row[column]
-                    })
-
-        # Display changes in a popover
-        with col4:
-            with st.popover("View Sent Changes"):
-                st.write("Changes Detected:")
-                for msg in change_messages:
-                    st.info(msg)
-
+# Automatically detect and send updated rows
+if not edited_df.equals(original_df):
+    edited_rows = original_df.compare(edited_df)
+    if not edited_rows.empty:
+        edited_indices = edited_rows.index.unique()
+        data_payload = edited_df.loc[edited_indices].to_dict(orient='records')
+        
+        changes = []
+        for index in edited_indices:
+            for column in edited_df.columns:
+                if original_df.at[index, column] != edited_df.at[index, column]:
+                    changes.append(
+                        f"The value of column '{column}' changed from '{original_df.at[index, column]}' to '{edited_df.at[index, column]}'"
+                    )
+        
+        with st.expander("View Data Sent"):
+            for change in changes:
+                st.write(change)
+        
         response = send_to_targetprocess(data_payload)
         if response.status_code == 200:
             st.success("Successfully sent data to Targetprocess.")
         else:
             st.error(f"Failed to send data to Targetprocess. Status code: {response.status_code}, Response: {response.text}")
-    else:
-        st.info("No changes detected to send.")
 
+    # Save the edited data
+    save_data(edited_df)
