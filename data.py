@@ -49,7 +49,7 @@ button_container = st.container()
 
 # Add search and filter options
 with button_container:
-    col1, col2, col3 = st.columns([1, 1, 2])
+    col1, col2, col3 = st.columns([3, 3, 3])
     with col1:
         filter_column = st.selectbox("Select Column", options=original_df.columns)
     with col2:
