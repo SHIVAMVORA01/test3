@@ -3,18 +3,15 @@ import pandas as pd
 import sqlite3
 import requests
 from datetime import datetime
-import os 
+import os
 
 st.set_page_config(
     page_title="PMO",
     layout="wide",
 )
 
-# Detect environment and set certificate path
-if os.getenv('CERT_PATH'):
-    cert_path = os.getenv('CERT_PATH')
-else:
-    cert_path = 'certs/Belden-Global-Root-CA.crt'  # Default path for local development
+# Get the certificate path from the environment variable
+cert_path = os.getenv('CERT_PATH', 'certs/Belden-Global-Root-CA.crt')  # Default to the repo path if environment variable is not set
 
 # Function to load data from SQLite
 def load_data():
@@ -35,8 +32,11 @@ def send_to_targetprocess(data_payload):
     headers = {
         "Content-Type": "application/json"
     }
-    response = requests.post(webhook_url, json=data_payload, verify=cert_path, headers=headers)
-    return response
+    try:
+        response = requests.post(webhook_url, json=data_payload, verify=cert_path, headers=headers)
+        return response
+    except Exception as e:
+        st.error(f"Error: {e}")
 
 # Load initial data
 original_df = load_data()
@@ -98,13 +98,13 @@ if not edited_df.equals(filtered_df):
                     )
         
         response = send_to_targetprocess(data_payload)
-        if response.status_code == 200:
+        if response and response.status_code == 200:
             st.success("Successfully sent data to Targetprocess.")
             with st.expander("View Data Sent"):
                 for change in changes:
                     st.write(change)
         else:
-            st.error(f"Failed to send data to Targetprocess. Status code: {response.status_code}, Response: {response.text}")
+            st.error(f"Failed to send data to Targetprocess. Status code: {response.status_code if response else 'N/A'}, Response: {response.text if response else 'N/A'}")
 
     # Save the edited data
     save_data(edited_df)
