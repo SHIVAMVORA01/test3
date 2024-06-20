@@ -3,11 +3,18 @@ import pandas as pd
 import sqlite3
 import requests
 from datetime import datetime
+import os 
 
 st.set_page_config(
     page_title="PMO",
     layout="wide",
 )
+
+# Detect environment and set certificate path
+if os.getenv('CERT_PATH'):
+    cert_path = os.getenv('CERT_PATH')
+else:
+    cert_path = 'certs/Belden-Global-Root-CA.crt'  # Default path for local development
 
 # Function to load data from SQLite
 def load_data():
@@ -28,7 +35,7 @@ def send_to_targetprocess(data_payload):
     headers = {
         "Content-Type": "application/json"
     }
-    response = requests.post(webhook_url, json=data_payload, verify='Belden-Global-Root-CA.crt', headers=headers)
+    response = requests.post(webhook_url, json=data_payload, verify=cert_path, headers=headers)
     return response
 
 # Load initial data
